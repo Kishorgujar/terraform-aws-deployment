@@ -1,66 +1,43 @@
 version: 0.2
-
 phases:
   install:
-    runtime-versions:
-      python: 3.x  # Adjust as necessary
     commands:
-      - echo "Installing Terraform"
-      - LATEST_TERRAFORM_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | jq -r .current_version)
-      - curl -o terraform.zip https://releases.hashicorp.com/terraform/${LATEST_TERRAFORM_VERSION}/terraform_${LATEST_TERRAFORM_VERSION}_linux_amd64.zip
+      - echo Installing dependencies...
+      - curl -Lo terraform.zip https://releases.hashicorp.com/terraform/1.0.0/terraform_1.0.0_linux_amd64.zip
       - unzip terraform.zip
       - sudo mv terraform /usr/local/bin/
       - terraform --version
-
-      - echo "Installing OPA (Open Policy Agent)"
-      - curl -L -o opa https://github.com/open-policy-agent/opa/releases/latest/download/opa_linux_amd64
+      - echo Installing OPA...
+      - curl -Lo opa https://github.com/open-policy-agent/opa/releases/latest/download/opa_linux_amd64
       - chmod +x opa
       - sudo mv opa /usr/local/bin/
       - opa version
-
-      - echo "Installing jq for JSON parsing"
-      - sudo apt-get update && sudo apt-get install -y jq
-
   pre_build:
     commands:
-      - echo "Pre-build phase: Initializing Terraform"
-      - terraform init
-
+      - echo Logging in to AWS...
+      - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+      - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+      - aws configure set default.region $AWS_DEFAULT_REGION
   build:
     commands:
-      - echo "Build phase: Running Terraform Plan"
+      - echo Starting Terraform...
+      - terraform init
+      - terraform validate
       - terraform plan -out=tfplan
+      - echo Showing Terraform plan...
+      - terraform show tfplan
+      - echo Generating JSON output from tfplan...
       - terraform show -json tfplan > tfplan.json
-      
-      # Evaluate the OPA policy
-      - echo "Evaluating OPA policy against Terraform plan"
+      - echo Showing the content of tfplan.json...
+      - cat tfplan.json
+      - echo Evaluating policy with OPA...
       - |
-        OPA_RESULT=$(opa eval --data policy.rego --input tfplan.json "data.terraform.s3.deny" -o json)
-        echo "$OPA_RESULT"
-
-        # Check if the policy evaluation returned 'true'
-        if echo "$OPA_RESULT" | jq -e '.result[0].expressions[0].value == true' > /dev/null; then
-            echo "Policy violation: S3 bucket tag modification is not allowed."
-            exit 1
-        else
-            echo "Policy check passed."
-        fi
-
-      # Check if the S3 bucket already exists before applying the plan
-      - echo "Checking if the S3 bucket exists"
-      - |
-        BUCKET_NAME="mybucketaccopa"
-        if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-            echo "Bucket $BUCKET_NAME already exists. Skipping creation."
-        else
-            echo "Bucket $BUCKET_NAME does not exist. Applying Terraform."
-            terraform apply -auto-approve tfplan || {
-                echo "Error applying Terraform plan."
-                exit 1
-            }
-        fi
-
+        opa eval --data policy.rego --input tfplan.json "data.example.s3.violation" || { 
+          echo "OPA evaluation failed: Policy violation detected"; 
+          exit 1; 
+        }
+ 
   post_build:
     commands:
-      - echo "Post-build phase"
-      - echo "Build completed successfully on `date`"
+      - echo Applying Terraform plan...
+      - terraform apply -auto-approve tfplan || { echo "Terraform apply failed"; exit 1; }
