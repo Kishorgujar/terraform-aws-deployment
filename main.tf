@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "my_bucket" {
-  bucket = "mbucketaccopa"
+  bucket = "mybucketaccopa"
   tags = {
     Name  = "Department"
     Value = "DevOps"
