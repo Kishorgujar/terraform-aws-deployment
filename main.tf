@@ -6,7 +6,7 @@ resource "aws_s3_bucket" "my_bucket" {
   bucket = "mybucketaccopa"
   tags = {
     Name  = "Department"
-    Value = "DevOps"
+    Value = "AWS"
   }
 }
 
