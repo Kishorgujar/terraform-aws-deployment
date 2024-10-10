@@ -46,7 +46,6 @@ phases:
             echo "Policy check passed."
         fi
 
-      # Check if the S3 bucket already exists before applying the plan
       - echo "Checking if the S3 bucket exists"
       - |
         BUCKET_NAME="mybucketaccopa"
