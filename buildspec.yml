@@ -21,31 +21,35 @@ phases:
       - echo Pre-build phase
       - terraform init
 
-  build:
-    commands:
-      - echo Build phase
-      - terraform plan -out=tfplan
+ build:
+  commands:
+    - echo Build phase
+    - terraform plan -out=tfplan
+    - terraform show -json tfplan > tfplan.json
 
-      # Evaluate the OPA policy for tag modifications on S3 buckets
-      - |
-        OPA_RESULT=$(opa eval --data policy.rego --input tfplan "data.terraform.s3.deny")
-        echo "$OPA_RESULT"
-        if echo "$OPA_RESULT" | grep -q 'true'; then
+    # Evaluate the OPA policy
+    - |
+      OPA_RESULT=$(opa eval --data policy.rego --input tfplan.json "data.terraform.s3.deny")
+      echo "$OPA_RESULT"
+      if echo "$OPA_RESULT" | grep -q 'true'; then
           echo "Policy violation: S3 bucket tag modification is not allowed."
           exit 1
-        else
+      else
           echo "Policy check passed."
-        fi
+      fi
 
-      # Handle potential error if the bucket already exists
-      - |
-        terraform apply -auto-approve tfplan || {
-          echo "Error applying Terraform plan. Checking for existing bucket..."
-          if terraform show tfplan | grep -q 'Error:'; then
-            echo "There was an error applying the plan. This may be due to an existing S3 bucket."
-          fi
-          exit 1
-        }
+    # Check if the bucket already exists before applying
+    - |
+      BUCKET_NAME="mybucketaccopa"
+      if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+          echo "Bucket $BUCKET_NAME already exists. Skipping creation."
+      else
+          terraform apply -auto-approve tfplan || {
+              echo "Error applying Terraform plan."
+              exit 1
+          }
+      fi
+
 
   post_build:
     commands:
