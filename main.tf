@@ -15,6 +15,6 @@ resource "aws_s3_bucket" "example" {
  
   tags = {
     Name        = "Department"
-    Environment = "DevOps"
+    Environment = "ACC"
   }
 }
