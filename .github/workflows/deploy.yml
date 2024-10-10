@@ -42,22 +42,14 @@ jobs:
 
       - name: Terraform Init
         run: |
-          echo `pwd`
-          echo "** Running Terraform Init **"
           terraform init -upgrade
-          echo "** Terraform Version **"
-          terraform -v
-          echo "** Running Terraform Validate **"
-          terraform validate
 
       - name: Terraform Plan
         run: |
-          echo "** Running Terraform Plan **"
           terraform plan -out=./tfplan
 
       - name: Terraform Apply
         run: |
-          echo "** Running Terraform Apply **"
           terraform apply -auto-approve ./tfplan
 
   terraform-destroy:
@@ -83,21 +75,13 @@ jobs:
 
       - name: Terraform Init
         run: |
-          echo `pwd`
-          echo "** Running Terraform Init **"
           terraform init -upgrade
-          echo "** Terraform Version **"
-          terraform -v
-          echo "** Running Terraform Validate **"
-          terraform validate
 
-      - name: Terraform Plan
+      - name: Terraform Destroy Plan
         run: |
-          echo "** Running Terraform Plan **"
           terraform plan -destroy -out=./tfplan
 
-      - name: Terraform Apply
+      - name: Terraform Destroy
         run: |
-          echo "** Running Terraform Apply **"
           terraform apply -auto-approve ./tfplan
 
