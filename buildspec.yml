@@ -24,14 +24,17 @@ phases:
       - echo "Running pre-build steps..."
       - terraform validate
       - if [ $? -ne 0 ]; then echo "Terraform validate failed"; exit 1; fi
-
   build:
     commands:
       - echo "Running Terraform plan..."
       - terraform plan -out=tfplan
       - if [ $? -ne 0 ]; then echo "Terraform plan failed"; exit 1; fi
+      
+      - echo "Converting Terraform plan to JSON for OPA evaluation..."
+      - terraform show -json tfplan > tfplan.json
+      
       - echo "Evaluating policy with OPA..."
-      - opa eval --input tfplan --data policy.rego "data.terraform.s3.deny"
+      - opa eval --input tfplan.json --data policy.rego "data.terraform.s3.deny"
       - if [ $? -ne 0 ]; then echo "OPA evaluation failed"; exit 1; fi
 
   post_build:
