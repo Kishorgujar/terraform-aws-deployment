@@ -10,25 +10,35 @@ phases:
       - unzip terraform.zip
       - mv terraform /usr/local/bin/
       - chmod +x /usr/local/bin/terraform
+      
+      - echo "Installing OPA..."
+      - curl -Lo opa https://github.com/open-policy-agent/opa/releases/latest/download/opa_linux_amd64
+      - mv opa /usr/local/bin/
+      - chmod +x /usr/local/bin/opa
 
   pre_build:
     commands:
       - echo "Initializing Terraform..."
-      - terraform init  # Ensure Terraform is initialized
+      - terraform init
+      - if [ $? -ne 0 ]; then echo "Terraform init failed"; exit 1; fi
       - echo "Running pre-build steps..."
-      - terraform validate  # Validate Terraform configuration
+      - terraform validate
+      - if [ $? -ne 0 ]; then echo "Terraform validate failed"; exit 1; fi
 
   build:
     commands:
       - echo "Running Terraform plan..."
       - terraform plan -out=tfplan
+      - if [ $? -ne 0 ]; then echo "Terraform plan failed"; exit 1; fi
       - echo "Evaluating policy with OPA..."
       - opa eval --input tfplan --data policy.rego "data.terraform.s3.deny"
+      - if [ $? -ne 0 ]; then echo "OPA evaluation failed"; exit 1; fi
 
   post_build:
     commands:
       - echo "Applying Terraform changes..."
       - terraform apply -auto-approve tfplan
+      - if [ $? -ne 0 ]; then echo "Terraform apply failed"; exit 1; fi
 
 artifacts:
   files:
