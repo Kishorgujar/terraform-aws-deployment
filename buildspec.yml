@@ -12,15 +12,25 @@ phases:
       - sudo mv terraform /usr/local/bin/
       - terraform --version
 
+      - echo "Installing OPA (Open Policy Agent)"
+      - curl -L -o opa https://github.com/open-policy-agent/opa/releases/latest/download/opa_linux_amd64
+      - chmod +x opa
+      - sudo mv opa /usr/local/bin/
+      - opa version
+
   build:
     commands:
       - echo "Build phase: Running Terraform Plan"
       - terraform plan -out=tfplan
       - terraform show -json tfplan > tfplan.json
+
+      - echo "Inspecting tfplan.json"
+      - cat tfplan.json
+
       - echo "Evaluating OPA policy against Terraform plan"
       - |
         OPA_RESULT=$(opa eval --data policy.rego --input tfplan.json "data.terraform.s3.deny" -o json)
-        echo "$OPA_RESULT"
+        echo "OPA Evaluation Result: $OPA_RESULT"
         if echo "$OPA_RESULT" | jq -e '.result[0].expressions[0].value == true' > /dev/null; then
             echo "Policy violation: S3 bucket tag modification is not allowed."
             exit 1
