@@ -3,26 +3,25 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      python: 3.x  # Specify the Python version you need
-      terraform: 1.0.0  # Specify the Terraform version you need
+      python: 3.x
     commands:
-      - echo "Installing required dependencies..."
-      - pip install --upgrade pip
-      - pip install pre-commit  # If you're using pre-commit for linting
-      - apt-get update && apt-get install -y opa  # Install OPA
-      - terraform init  # Initialize Terraform
+      - echo "Installing Terraform..."
+      - curl -Lo terraform.zip https://releases.hashicorp.com/terraform/1.0.0/terraform_1.0.0_linux_amd64.zip
+      - unzip terraform.zip
+      - mv terraform /usr/local/bin/
+      - chmod +x /usr/local/bin/terraform
 
   pre_build:
     commands:
       - echo "Running pre-build steps..."
-      - terraform validate  # Validate Terraform configuration
+      - terraform validate
 
   build:
     commands:
       - echo "Running Terraform plan..."
       - terraform plan -out=tfplan
       - echo "Evaluating policy with OPA..."
-      - opa eval --input tfplan --data policy.rego "data.terraform.s3.deny"  # Check policy
+      - opa eval --input tfplan --data policy.rego "data.terraform.s3.deny"
 
   post_build:
     commands:
