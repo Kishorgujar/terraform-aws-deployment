@@ -13,8 +13,10 @@ phases:
 
   pre_build:
     commands:
+      - echo "Initializing Terraform..."
+      - terraform init  # Ensure Terraform is initialized
       - echo "Running pre-build steps..."
-      - terraform validate
+      - terraform validate  # Validate Terraform configuration
 
   build:
     commands:
