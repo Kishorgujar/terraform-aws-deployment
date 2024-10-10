@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      python: 3.x  # Adjust as necessary
+      python: 3.x
     commands:
       - echo "Installing Terraform"
       - LATEST_TERRAFORM_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | jq -r .current_version)
@@ -12,51 +12,20 @@ phases:
       - sudo mv terraform /usr/local/bin/
       - terraform --version
 
-      - echo "Installing OPA (Open Policy Agent)"
-      - curl -L -o opa https://github.com/open-policy-agent/opa/releases/latest/download/opa_linux_amd64
-      - chmod +x opa
-      - sudo mv opa /usr/local/bin/
-      - opa version
-
-      - echo "Installing jq for JSON parsing"
-      - sudo apt-get update && sudo apt-get install -y jq
-
-  pre_build:
-    commands:
-      - echo "Pre-build phase: Initializing Terraform"
-      - terraform init
-
   build:
     commands:
       - echo "Build phase: Running Terraform Plan"
       - terraform plan -out=tfplan
       - terraform show -json tfplan > tfplan.json
-      
-      # Evaluate the OPA policy
       - echo "Evaluating OPA policy against Terraform plan"
       - |
         OPA_RESULT=$(opa eval --data policy.rego --input tfplan.json "data.terraform.s3.deny" -o json)
         echo "$OPA_RESULT"
-
-        # Check if the policy evaluation returned 'true'
         if echo "$OPA_RESULT" | jq -e '.result[0].expressions[0].value == true' > /dev/null; then
             echo "Policy violation: S3 bucket tag modification is not allowed."
             exit 1
         else
             echo "Policy check passed."
-        fi
-
-      - echo "Checking if the S3 bucket exists"
-      - |
-        BUCKET_NAME="mybucketaccopa"
-        if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-            echo "Bucket $BUCKET_NAME already exists. Skipping creation."
-        else
-            echo "Bucket $BUCKET_NAME does not exist. Applying Terraform."
-            terraform apply -auto-approve tfplan || {
-                echo "Error applying Terraform plan."
-                exit 1
-            }
         fi
 
   post_build:
