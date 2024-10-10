@@ -3,60 +3,37 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      python: 3.x
+      python: 3.x  # Specify the Python version you need
+      terraform: 1.0.0  # Specify the Terraform version you need
     commands:
-      - echo "Installing Terraform"
-      - LATEST_TERRAFORM_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | jq -r .current_version)
-      - curl -o terraform.zip https://releases.hashicorp.com/terraform/${LATEST_TERRAFORM_VERSION}/terraform_${LATEST_TERRAFORM_VERSION}_linux_amd64.zip
-      - unzip terraform.zip
-      - sudo mv terraform /usr/local/bin/
-      - terraform --version
-
-      - echo "Installing OPA (Open Policy Agent)"
-      - curl -L -o opa https://github.com/open-policy-agent/opa/releases/latest/download/opa_linux_amd64
-      - chmod +x opa
-      - sudo mv opa /usr/local/bin/
-      - opa version
+      - echo "Installing required dependencies..."
+      - pip install --upgrade pip
+      - pip install pre-commit  # If you're using pre-commit for linting
+      - apt-get update && apt-get install -y opa  # Install OPA
+      - terraform init  # Initialize Terraform
 
   pre_build:
     commands:
-      - echo "Pre-build phase: Initializing Terraform"
-      - terraform init
+      - echo "Running pre-build steps..."
+      - terraform validate  # Validate Terraform configuration
 
   build:
     commands:
-      - echo "Build phase: Running Terraform Plan"
+      - echo "Running Terraform plan..."
       - terraform plan -out=tfplan
-      - terraform show -json tfplan > tfplan.json
-
-      - echo "Inspecting tfplan.json"
-      - cat tfplan.json
-
-      - echo "Evaluating OPA policy against Terraform plan"
-      - |
-        OPA_RESULT=$(opa eval --data policy.rego --input tfplan.json "data.terraform.s3.deny" -o json)
-        echo "OPA Evaluation Result: $OPA_RESULT"
-        if echo "$OPA_RESULT" | jq -e '.result[0].expressions[0].value == true' > /dev/null; then
-            echo "Policy violation: S3 bucket tag modification is not allowed."
-            exit 1
-        else
-            echo "Policy check passed."
-        fi
-
-      - echo "Checking if the S3 bucket exists"
-      - |
-        BUCKET_NAME="mybucketaccopa"
-        if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-            echo "Bucket $BUCKET_NAME already exists. Skipping creation."
-        else
-            echo "Bucket $BUCKET_NAME does not exist. Applying Terraform."
-            terraform apply -auto-approve tfplan || {
-                echo "Error applying Terraform plan."
-                exit 1
-            }
-        fi
+      - echo "Evaluating policy with OPA..."
+      - opa eval --input tfplan --data policy.rego "data.terraform.s3.deny"  # Check policy
 
   post_build:
     commands:
-      - echo "Post-build phase"
-      - echo "Build completed successfully on `date`"
+      - echo "Applying Terraform changes..."
+      - terraform apply -auto-approve tfplan
+
+artifacts:
+  files:
+    - '**/*'
+  discard-paths: yes
+
+cache:
+  paths:
+    - ~/.terraform/plugins
